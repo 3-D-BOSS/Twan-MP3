@@ -3,134 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> ❤️ Thar wai phyo😍</title>
+    <title>Relief Locator with Map and Directions</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+    <!-- Leaflet Routing Machine CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css">
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="player">
-        <h1>MP3 Player</h1>
-        <audio id="audioPlayer" controls>
-            <source id="audioSource" src="SPRITE_x_GUYGEEGEE_-_ทน_(Prod._by_MOSSHU_x_NINO)_OFFICIAL_MV(256k).mp3" type="audio/mpeg">
-            Your browser does not support the audio element.
-        </audio>
-        <div class="controls">
-            <button id="prevBtn">Previous</button>
-            <button id="playBtn">Play</button>
-            <button id="pauseBtn">Pause</button>
-            <button id="nextBtn">Next</button>
-            <input type="range" id="volumeControl" min="0" max="1" step="0.01" value="0.5">
+    <div class="container mt-4">
+        <h1 class="text-center">Relief and Help Locator</h1>
+        <div class="text-center mb-3">
+            <button id="shareLocationBtn" class="btn btn-primary">Share My Location</button>
         </div>
-        <div id="currentTrack">Playing: Track 1</div>
+        <div id="map" class="mb-3" style="height: 500px;"></div>
+        <div id="history">
+            <h2 class="text-center">History</h2>
+            <ul id="historyList" class="list-group"></ul>
+        </div>
     </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-    const audioPlayer = document.getElementById('audioPlayer');
-    const audioSource = document.getElementById('audioSource');
-    const playBtn = document.getElementById('playBtn');
-    const pauseBtn = document.getElementById('pauseBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
-    const volumeControl = document.getElementById('volumeControl');
-    const currentTrack = document.getElementById('currentTrack');
+    <!-- jQuery and Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- Leaflet Routing Machine JS -->
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+    <!-- Custom JS -->
+    <script >
+        // Relief locations mock data with different colors
+const reliefLocations = [
+    { name: 'Relief Center 1', latitude: 40.7128, longitude: -74.0060 },
+    { name: 'Relief Center 2', latitude: 34.0522, longitude: -118.2437 },
+    { name: 'Relief Center 3', latitude: 51.5074, longitude: -0.1278 }
+];
 
-    const playlist = [
-        { src: 'SPRITE_x_GUYGEEGEE_-_ทน_(Prod._by_MOSSHU_x_NINO)_OFFICIAL_MV(256k).mp3', name: 'Track 1' },
-        { src: 'SPRITE_x_GUYGEEGEE_-_ทน_(Prod._by_MOSSHU_x_NINO)_OFFICIAL_MV(256k).mp3', name: 'Track 2' },
-        { src: 'track3.mp3', name: 'Track 3' },
-        { src: 'track4.mp3', name: 'Track 4' }
-    ];
-    
-    let currentTrackIndex = 0;
+const map = L.map('map').setView([20.0, 0.0], 2); // Centered on the world
 
-    function loadTrack(index) {
-        if (index >= 0 && index < playlist.length) {
-            currentTrackIndex = index;
-            audioSource.src = playlist[currentTrackIndex].src;
-            audioPlayer.load();
-            audioPlayer.play();
-            currentTrack.textContent = `Playing: ${playlist[currentTrackIndex].name}`;
+// Add OpenStreetMap tiles
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+// Initialize routing control
+let routingControl;
+
+// Show user's location on the map
+function showUserLocation(lat, lng) {
+    L.marker([lat, lng])
+        .addTo(map)
+        .bindPopup('<b>Your Location</b>')
+        .openPopup();
+    map.setView([lat, lng], 10); // Zoom to user's location
+}
+
+// Display relief locations on the map
+function displayReliefLocations(userLat, userLng) {
+    reliefLocations.forEach(location => {
+        L.marker([location.latitude, location.longitude], {
+            icon: L.divIcon({
+                className: 'custom-icon',
+                html: '<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%;"></div>',
+                iconSize: [20, 20]
+            })
+        })
+        .addTo(map)
+        .bindPopup(`<b>${location.name}</b>`)
+        .on('click', () => {
+            if (routingControl) {
+                routingControl.removeFrom(map);
+            }
+            routingControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(userLat, userLng),
+                    L.latLng(location.latitude, location.longitude)
+                ],
+                routeWhileDragging: true
+            }).addTo(map);
+            saveHistory(location.name, userLat, userLng, location.latitude, location.longitude);
+        });
+    });
+}
+
+// Save interaction history
+function saveHistory(name, userLat, userLng, reliefLat, reliefLng) {
+    const historyList = document.getElementById('historyList');
+    const historyItem = document.createElement('li');
+    historyItem.classList.add('list-group-item');
+    historyItem.textContent = `Directed to ${name} from (${userLat.toFixed(4)}, ${userLng.toFixed(4)}) to (${reliefLat.toFixed(4)}, ${reliefLng.toFixed(4)})`;
+    historyItem.addEventListener('click', () => {
+        if (routingControl) {
+            routingControl.removeFrom(map);
         }
+        routingControl = L.Routing.control({
+            waypoints: [
+                L.latLng(userLat, userLng),
+                L.latLng(reliefLat, reliefLng)
+            ],
+            routeWhileDragging: true
+        }).addTo(map);
+    });
+    historyList.appendChild(historyItem);
+}
+
+document.getElementById('shareLocationBtn').addEventListener('click', () => {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position => {
+            const userLatitude = position.coords.latitude;
+            const userLongitude = position.coords.longitude;
+            showUserLocation(userLatitude, userLongitude);
+            displayReliefLocations(userLatitude, userLongitude);
+        }, handleError);
+    } else {
+        alert('Geolocation is not supported by this browser.');
     }
-
-    playBtn.addEventListener('click', function () {
-        audioPlayer.play();
-    });
-
-    pauseBtn.addEventListener('click', function () {
-        audioPlayer.pause();
-    });
-
-    prevBtn.addEventListener('click', function () {
-        loadTrack((currentTrackIndex - 1 + playlist.length) % playlist.length);
-    });
-
-    nextBtn.addEventListener('click', function () {
-        loadTrack((currentTrackIndex + 1) % playlist.length);
-    });
-
-    volumeControl.addEventListener('input', function () {
-        audioPlayer.volume = volumeControl.value;
-    });
 });
+
+function handleError(error) {
+    switch (error.code) {
+        case error.PERMISSION_DENIED:
+            alert("User denied the request for Geolocation.");
+            break;
+        case error.POSITION_UNAVAILABLE:
+            alert("Location information is unavailable.");
+            break;
+        case error.TIMEOUT:
+            alert("The request to get user location timed out.");
+            break;
+        case error.UNKNOWN_ERROR:
+            alert("An unknown error occurred.");
+            break;
+    }
+}
 
     </script>
 </body>
 <style>
     body {
     font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
+    background-color: #f8f9fa;
 }
 
-.player {
-    background-color: #fff;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    text-align: center;
+#map {
+    border-radius: 8px;
 }
 
-h1 {
-    margin-bottom: 20px;
-    color: #333;
-}
-
-audio {
-    width: 100%;
-    margin-bottom: 10px;
-}
-
-.controls {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    align-items: center;
-}
-
-button {
-    padding: 10px 20px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 5px;
+.list-group-item {
     cursor: pointer;
+    transition: background-color 0.3s;
 }
 
-button:hover {
-    background-color: #0056b3;
-}
-
-input[type="range"] {
-    width: 150px;
-}
-
-#currentTrack {
-    margin-top: 10px;
-    font-weight: bold;
+.list-group-item:hover {
+    background-color: #e9ecef;
 }
 
 </style>
